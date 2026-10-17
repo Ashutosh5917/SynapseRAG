@@ -1,0 +1,44 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Secrets & Environment variables (CRITICAL: Never commit keys)
+.env
+.env.*
+!.env.example
+
+# SQLite Databases & credentials
+*.db
+users.db
+
+# Local Vector Store indices & runtime artifacts
+faiss_index/
+qdrant_storage/
+
+# IDE & Editor settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+app.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Rust build artifacts
+target/
