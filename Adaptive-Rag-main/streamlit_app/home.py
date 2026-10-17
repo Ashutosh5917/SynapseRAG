@@ -71,16 +71,68 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Step 1: Fetch API token only once per session
+# Auto-bootloader for single-click / cloud deployment
+def ensure_backend_services():
+    """Auto-spawns background microservices if not running (e.g. on Streamlit Cloud)."""
+    import socket
+    import subprocess
+    import sys
+    import time
+
+    def is_port_open(port: int) -> bool:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.6)
+                return s.connect_ex(("127.0.0.1", port)) == 0
+        except Exception:
+            return False
+
+    started = False
+    if not is_port_open(8000):
+        try:
+            subprocess.Popen([sys.executable, "-m", "uvicorn", "src.main:app", "--port", "8000", "--host", "0.0.0.0"])
+            started = True
+        except Exception:
+            pass
+
+    if not is_port_open(8080):
+        try:
+            subprocess.Popen([sys.executable, "run_auth_service.py"])
+            started = True
+        except Exception:
+            pass
+
+    if started:
+        time.sleep(2.0)
+
+# Step 1: Fetch API token with auto-bootloader retry
 if "session_id" not in st.session_state:
     token = get_api_token()
+    if not token:
+        ensure_backend_services()
+        token = get_api_token()
+
     if token:
         st.session_state["session_id"] = token
     else:
-        st.error("Failed to connect to Gateway (:8080). Ensure python run_auth_service.py is running.")
+        st.error("Failed to connect to Gateway (:8080). Ensure `python run_all.py` or `python run_auth_service.py` is running.")
         st.stop()
 
-# Step 2: Render login/signup form
+# 1-Click Instant Guest Demo Button
+col_demo, _ = st.columns([1, 0.01])
+with col_demo:
+    if st.button("⚡ Instant Guest Demo (1-Click Access)", use_container_width=True):
+        demo_user = "demo_guest"
+        create_user(demo_user, "DemoPass123!", st.session_state["session_id"])
+        resp = login_user(demo_user, "DemoPass123!", st.session_state["session_id"])
+        if resp and resp.get("jwt"):
+            st.session_state["jwt_token"] = resp["jwt"]
+            st.session_state["username"] = "Guest Demo"
+            st.switch_page("pages/chat.py")
+
+st.markdown("<div style='text-align: center; margin: 12px 0; font-size: 11px; color: #64748B;'>— OR AUTHENTICATE WITH ACCOUNT —</div>", unsafe_allow_html=True)
+
+# Step 2: Render standard login/signup form
 with st.form("auth_form"):
     username = st.text_input("Username", placeholder="e.g. alice")
     password = st.text_input("Password", type="password", placeholder="••••••••")

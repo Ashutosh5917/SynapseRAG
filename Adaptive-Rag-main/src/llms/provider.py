@@ -27,6 +27,12 @@ except ImportError:
     ChatOpenAI = None  # type: ignore
     OpenAIEmbeddings = None  # type: ignore
 
+try:
+    from langchain_groq import ChatGroq
+except ImportError:
+    ChatGroq = None  # type: ignore
+
+
 
 from src.llms.model_discovery import (
     get_active_provider_configuration,
@@ -125,7 +131,30 @@ def get_llm(
         _cached_llm = llm_instance
         return llm_instance
 
-    # 2. OpenAI Cloud
+    # 2. Groq Free Cloud AI (Llama 3.3 70B / Llama 3.1 8B)
+    if cfg.get("provider") == "groq" or (os.getenv("GROQ_API_KEY") and not os.getenv("OPENAI_API_KEY")):
+        groq_key = os.getenv("GROQ_API_KEY", "")
+        model_name = cfg.get("selected_model", "llama-3.3-70b-versatile")
+        logger.info("Configuring Groq Free Cloud AI (model: %s)", model_name)
+        if ChatGroq:
+            llm_instance = ChatGroq(
+                groq_api_key=groq_key,
+                model_name=model_name,
+                temperature=0.0,
+                streaming=True,
+            )
+        else:
+            llm_instance = ChatOpenAI(
+                base_url="https://api.groq.com/openai/v1",
+                api_key=groq_key,
+                model=model_name,
+                temperature=0.0,
+                streaming=True,
+            )
+        _cached_llm = llm_instance
+        return llm_instance
+
+    # 3. OpenAI Cloud
     if cfg.get("provider") == "openai" or os.getenv("OPENAI_API_KEY"):
         api_key = os.getenv("OPENAI_API_KEY", "")
         model_name = cfg.get("selected_model", "gpt-4o")
@@ -217,6 +246,9 @@ def get_active_provider_status() -> Dict[str, Any]:
         "active_provider": cfg.get("provider"),
         "active_model": cfg.get("selected_model"),
         "is_local": cfg.get("mode") == "local",
-        "has_cloud_key": bool(os.getenv("OPENAI_API_KEY")),
+        "has_cloud_key": bool(os.getenv("OPENAI_API_KEY") or os.getenv("GROQ_API_KEY")),
+        "has_groq_key": bool(os.getenv("GROQ_API_KEY")),
+        "has_openai_key": bool(os.getenv("OPENAI_API_KEY")),
         "discovered_local_providers": all_local,
     }
+

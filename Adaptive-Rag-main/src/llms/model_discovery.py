@@ -158,8 +158,9 @@ def get_active_provider_configuration(
     """
     mode = (forced_provider or os.getenv("LLM_PROVIDER", "auto")).lower()
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+    groq_key = os.getenv("GROQ_API_KEY", "").strip()
     local_providers = discover_all_local_providers()
-    
+
     # Mode: Force Local / Ollama
     if mode in ["ollama", "local", "lm_studio", "custom"]:
         matching = [p for p in local_providers if p["provider"] == mode or mode in ["local", "custom"]]
@@ -169,7 +170,6 @@ def get_active_provider_configuration(
                 cfg["selected_model"] = forced_model
             cfg["mode"] = "local"
             return cfg
-        # If forced provider is not currently active, still return configured target with warning
         return {
             "provider": mode,
             "name": f"Local AI ({mode})",
@@ -179,7 +179,18 @@ def get_active_provider_configuration(
             "selected_model": forced_model or "llama3.2",
             "warning": f"Local provider '{mode}' was requested but could not be reached. Ensure the service is running."
         }
-    
+
+    # Mode: Force Groq (Free Cloud Tier)
+    if mode == "groq":
+        return {
+            "provider": "groq",
+            "name": "Groq Cloud (Free Tier)",
+            "is_running": bool(groq_key),
+            "mode": "cloud",
+            "selected_model": forced_model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            "has_api_key": bool(groq_key),
+        }
+
     # Mode: Force Cloud / OpenAI
     if mode in ["openai", "cloud"]:
         return {
@@ -190,9 +201,9 @@ def get_active_provider_configuration(
             "selected_model": forced_model or os.getenv("OPENAI_MODEL", "gpt-4o"),
             "has_api_key": bool(openai_key),
         }
-    
+
     # Mode: Auto (Default)
-    # Check if local provider is running first
+    # 1. Local AI First
     if local_providers:
         top_local = local_providers[0].copy()
         if forced_model:
@@ -201,8 +212,20 @@ def get_active_provider_configuration(
         top_local["auto_selected"] = True
         logger.info("Auto-detected local AI model provider: %s (%s)", top_local["name"], top_local["selected_model"])
         return top_local
-        
-    # Cloud fallback if API key exists
+
+    # 2. Groq Free Tier Fallback (if Groq key is set)
+    if groq_key:
+        return {
+            "provider": "groq",
+            "name": "Groq Cloud (Auto-Selected Free Tier)",
+            "is_running": True,
+            "mode": "cloud",
+            "selected_model": forced_model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            "has_api_key": True,
+            "auto_selected": True,
+        }
+
+    # 3. OpenAI Cloud Fallback
     if openai_key:
         return {
             "provider": "openai",
@@ -213,7 +236,7 @@ def get_active_provider_configuration(
             "has_api_key": True,
             "auto_selected": True,
         }
-        
+
     # Neither local AI nor cloud key found
     return {
         "provider": "none",
@@ -221,5 +244,5 @@ def get_active_provider_configuration(
         "is_running": False,
         "mode": "none",
         "selected_model": "none",
-        "message": "Neither a running local model server (Ollama/LM Studio) nor an OPENAI_API_KEY was found.",
+        "message": "Neither a running local model server (Ollama/LM Studio) nor an API key (Groq/OpenAI) was found.",
     }

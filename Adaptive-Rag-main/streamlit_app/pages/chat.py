@@ -102,24 +102,20 @@ with st.sidebar:
 
     if is_local:
         st.success(f"🟢 **Local AI Active**\n\n• Provider: `{active_prov.upper()}`\n\n• Model: `{active_mod}`\n\n*(100% offline & private)*")
+    elif active_prov == "groq":
+        st.info(f"⚡ **Groq Cloud Active**\n\n• Provider: `Groq (Free Tier)`\n\n• Model: `{active_mod}`\n\n*(Ultra-fast 500 tok/s)*")
     elif active_prov in ["openai", "cloud"]:
-        st.info(f"🌐 **Cloud AI Active**\n\n• Provider: `OpenAI`\n\n• Model: `{active_mod}`")
+        st.info(f"🌐 **OpenAI Cloud Active**\n\n• Provider: `OpenAI`\n\n• Model: `{active_mod}`")
     else:
-        st.warning("⚠️ **No Active LLM Found**\n\nStart local Ollama or set `OPENAI_API_KEY`.")
+        st.warning("⚠️ **No Active LLM Found**\n\nRun local Ollama or add a free Groq/OpenAI key below.")
 
-    with st.expander("⚙️ Engine & Local Discovery", expanded=False):
+    with st.expander("⚙️ Engine & Cloud Keys", expanded=False):
         if discovered:
             st.markdown(f"**Found {len(discovered)} Local Server(s):**")
             for prov in discovered:
-                st.caption(f"• **{prov.get('name')}** (`{prov.get('host')}`) - {len(prov.get('models', []))} models found")
+                st.caption(f"• **{prov.get('name')}** (`{prov.get('host')}`) - {len(prov.get('models', []))} models")
         else:
-            st.caption("No running local server found at `localhost:11434` (Ollama) or `localhost:1234` (LM Studio).")
-            st.markdown("""
-            > **Free Local AI Setup:**
-            > 1. Install [Ollama](https://ollama.com/)
-            > 2. Run: `ollama run llama3.2`
-            > 3. Click **Scan Local Models** below
-            """)
+            st.caption("No local server at `localhost:11434` (Ollama) or `localhost:1234` (LM Studio).")
 
         col_scan, _ = st.columns([1, 1])
         with col_scan:
@@ -131,6 +127,7 @@ with st.sidebar:
             provider_options.append("ollama")
         if any(p.get("provider") == "lm_studio" for p in discovered):
             provider_options.append("lm_studio")
+        provider_options.append("groq")
         provider_options.append("openai")
 
         selected_prov = st.selectbox(
@@ -138,12 +135,23 @@ with st.sidebar:
             options=provider_options,
             index=0 if active_prov not in provider_options else provider_options.index(active_prov),
             format_func=lambda x: {
-                "auto": "⚡ Auto-Detect (Prefers Local)",
+                "auto": "⚡ Auto-Detect (Prefers Local / Free)",
                 "ollama": "🦙 Ollama (Local)",
                 "lm_studio": "🧪 LM Studio (Local)",
+                "groq": "⚡ Groq Cloud (Free Tier - Llama 3.3 70B)",
                 "openai": "🌐 OpenAI Cloud (GPT-4o)",
             }.get(x, x),
         )
+
+        # Quick Key Injector for Free Live Cloud Testing
+        user_groq_key = st.text_input(
+            "Free Groq API Key (Optional)",
+            value=os.getenv("GROQ_API_KEY", ""),
+            type="password",
+            placeholder="gsk_..."
+        )
+        if user_groq_key:
+            os.environ["GROQ_API_KEY"] = user_groq_key.strip()
 
         if st.button("Apply Engine", use_container_width=True):
             switch_model_provider(selected_prov)
